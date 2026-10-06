@@ -112,7 +112,6 @@
     </div>
 
     <script>
-        // ★ ご自身で取得したGoogle OAuth クライアントIDをここにハードコーディングしてください
         const GOOGLE_CLIENT_ID = '706740896974-elfi395qsq6t78eq1skmpvslgnahp83q.apps.googleusercontent.com';
         const DRIVE_FILE_NAME = 'knowledge_store.json';
 
@@ -150,20 +149,19 @@
 
         function handleGoogleDriveSync() {
             if (!tokenClient) {
-                alert('Google認証クライアントの初期化が完了していません。');
+                alert('Google認証クライアントの初期化が完了していません。ページを再読み込みしてください。');
                 return;
             }
             if (accessToken === null) {
-                // 初回はアクセストークンを要求（ポップアップログイン）
                 tokenClient.requestAccessToken({ prompt: 'consent' });
             } else {
-                // すでにトークンがある場合はそのまま同期実行
                 syncDataWithDrive();
             }
         }
 
         async function syncDataWithDrive() {
             const btn = document.querySelector('button[onclick="handleGoogleDriveSync()"]');
+            const originalText = btn.innerText;
             btn.innerText = '同期中...';
             try {
                 // 1. Googleドライブから同名ファイルを検索
@@ -173,31 +171,29 @@
                 const searchData = await searchRes.json();
 
                 if (searchData.files && searchData.files.length > 0) {
-                    // ファイルが存在する場合：クラウドからデータを取得してローカルとマージ（またはダウンロード）
                     const fileId = searchData.files[0].id;
                     const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
                         headers: { 'Authorization': `Bearer ${accessToken}` }
                     });
-                    const cloudData = await fileRes.json();
-
-                    if (cloudData && cloudData.items) {
-                        // クラウドのデータとローカルデータを結合（IDが重複しないようにマージ）
-                        const localIds = new Set(knowledgeStore.items.map(i => i.id));
-                        cloudData.items.forEach(ci => {
-                            if (!localIds.has(ci.id)) {
-                                knowledgeStore.items.push(ci);
-                            }
-                        });
-                        saveToLocalStorage();
-                        renderList();
+                    if (fileRes.ok) {
+                        const cloudData = await fileRes.json();
+                        if (cloudData && cloudData.items) {
+                            const localIds = new Set(knowledgeStore.items.items ? knowledgeStore.items.map(i => i.id) : knowledgeStore.items.map(i => i.id));
+                            cloudData.items.forEach(ci => {
+                                if (!localIds.has(ci.id)) {
+                                    knowledgeStore.items.push(ci);
+                                }
+                            });
+                            saveToLocalStorage();
+                            renderList();
+                        }
                     }
                 }
 
-                // 2. 現在のローカルデータをGoogleドライブへアップロード（上書き保存）
+                // 2. 現在のローカルデータをGoogleドライブへアップロード（上書きまたは新規作成）
                 const fileContent = JSON.stringify(knowledgeStore, null, 2);
                 
                 if (searchData.files && searchData.files.length > 0) {
-                    // 既存ファイルを更新
                     const fileId = searchData.files[0].id;
                     await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
                         method: 'PATCH',
@@ -208,7 +204,7 @@
                         body: fileContent
                     });
                 } else {
-                    // 新規ファイルを作成
+                    // multipart/related を正確に構築
                     const metadata = { name: DRIVE_FILE_NAME, mimeType: 'application/json' };
                     const form = new FormData();
                     form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
@@ -226,11 +222,11 @@
                 console.error(err);
                 alert('同期中にエラーが発生しました: ' + err.message);
             } finally {
-                btn.innerText = 'Gドライブ同期';
+                btn.innerText = originalText;
             }
         }
 
-        // --- 既存の画面制御・AI処理ロジック ---
+        // --- 画面制御・AI処理ロジック ---
         function adjustLayoutForScreen() {
             const paneLeft = document.getElementById('pane-left');
             const paneRight = document.getElementById('pane-right');
@@ -302,6 +298,7 @@
         }
 
         function saveToLocalStorage() { localStorage.setItem('knowledge_store', JSON.stringify(knowledgeStore)); }
+        
         function loadFromLocalStorage() {
             const saved = localStorage.getItem('knowledge_store');
             if (saved) { try { knowledgeStore = JSON.parse(saved); } catch(e) { console.error(e); } }
@@ -370,8 +367,10 @@
 
         function renderList() {
             const container = document.getElementById('card-list');
-            const query = document.getElementById('search-input').value.toLowerCase();
-            const filtered = knowledgeStore.items.filter(i => i.title.toLowerCase().includes(query) || i.rawInput.toLowerCase().includes(query) || i.seriesName.toLowerCase().includes(query));
+            const searchInput = document.getElementById('search-input');
+            const query = searchInput ? searchInput.value.toLowerCase() : '';
+            const items = knowledgeStore.items || [];
+            const filtered = items.filter(i => (i.title && i.title.toLowerCase().includes(query)) || (i.rawInput && i.rawInput.toLowerCase().includes(query)) || (i.seriesName && i.seriesName.toLowerCase().includes(query)));
 
             if (filtered.length === 0) {
                 container.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">データがありません。</p>`;
