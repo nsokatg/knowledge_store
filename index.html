@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knowledge Digest & Micro-Learning</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Identity Services (GIS) の読み込み -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen flex flex-col overflow-hidden">
+    
+    <!-- ヘッダー -->
+    <header class="bg-white border-b border-slate-200 px-4 py-3 flex justify-between items-center shrink-0">
+        <h1 class="font-bold text-sm md:text-base text-slate-900">🎓 ナレッジダイジェスト</h1>
+        <div class="flex gap-2">
+            <button onclick="openApiKeyModal()" class="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded font-medium text-slate-600">APIキー</button>
+            <button onclick="handleGoogleDriveSync()" class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded font-medium">Gドライブ同期</button>
+        </div>
+    </header>
+
+    <!-- モバイル用タブ切替ナビ -->
+    <div class="flex md:hidden bg-slate-200 p-1 gap-1 shrink-0">
+        <button onclick="switchTab('input')" id="tab-input" class="flex-1 py-2 text-xs font-bold bg-white rounded shadow-sm text-blue-600">インプット</button>
+        <button onclick="switchTab('list')" id="tab-list" class="flex-1 py-2 text-xs font-bold text-slate-600">ストック一覧</button>
+        <button onclick="switchTab('viewer')" id="tab-viewer" class="flex-1 py-2 text-xs font-bold text-slate-600">詳細ビュー</button>
+    </div>
+
+    <!-- メインレイアウト -->
+    <div class="flex flex-1 overflow-hidden relative">
+        
+        <!-- 左ペイン：インプット ＆ ストック一覧 -->
+        <div id="pane-left" class="w-full md:w-96 lg:w-[420px] bg-white border-r border-slate-200 flex flex-col h-full absolute md:relative z-10 md:z-auto overflow-y-auto p-4 gap-4">
+            
+            <!-- 新規インプットカード -->
+            <div id="section-input" class="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm shrink-0">
+                <h2 class="font-bold text-sm mb-2 text-slate-800">✍️ 新規学習ノート</h2>
+                
+                <div class="mb-2">
+                    <label class="block text-[11px] font-semibold text-slate-500 mb-1">シリーズ・カテゴリー名（例: 〇〇研修 / 読書感想）</label>
+                    <input type="text" id="series-input" placeholder="例: リーダーシップ研修 1日目" class="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <textarea id="raw-input-text" rows="4" placeholder="読書メモ、研修の気づき、社会見学の学びなどをペースト..." class="w-full p-3 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3"></textarea>
+                <div class="flex justify-end">
+                    <button onclick="processAIInput()" id="process-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs md:text-sm font-semibold shadow transition">AIで要約＆カード化</button>
+                </div>
+            </div>
+
+            <!-- ストック検索＆一覧 -->
+            <div id="section-list" class="flex flex-col flex-1">
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">📚 ストック一覧</h3>
+                <input type="text" id="search-input" placeholder="キーワードで検索..." oninput="renderList()" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <div id="card-list" class="space-y-2">
+                    <!-- 動的カードリスト -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 右ペイン：詳細ビュー -->
+        <div id="pane-right" class="w-full md:flex-1 bg-slate-50 p-4 md:p-6 overflow-y-auto absolute md:relative z-0 md:z-auto hidden md:block h-full">
+            <div id="viewer-container" class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hidden">
+                
+                <div class="flex justify-between items-center mb-2">
+                    <span id="view-series" class="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-xs font-semibold hidden">シリーズ名</span>
+                    <span id="view-date" class="text-xs text-slate-400 ml-auto">2026-10-06</span>
+                </div>
+
+                <h2 id="view-title" class="text-lg md:text-xl font-bold text-slate-900 mb-3">タイトル</h2>
+                
+                <!-- 前後のカードナビゲーション -->
+                <div id="series-nav" class="flex justify-between items-center bg-slate-50 border border-slate-200 p-2.5 rounded-lg mb-4 text-xs hidden">
+                    <button id="prev-btn" onclick="" class="text-blue-600 hover:underline font-medium text-left truncate max-w-[45%]">← 前へ</button>
+                    <button id="next-btn" onclick="" class="text-blue-600 hover:underline font-medium text-right truncate max-w-[45%] ml-auto">次へ →</button>
+                </div>
+
+                <hr class="border-slate-100 mb-4">
+                
+                <div class="space-y-6">
+                    <div>
+                        <h3 class="text-xs md:text-sm font-bold text-blue-600 uppercase tracking-wider mb-2">💡 3行サマリー</h3>
+                        <ul id="view-summary" class="list-disc pl-5 space-y-1.5 text-xs md:text-sm text-slate-700 leading-relaxed"></ul>
+                    </div>
+                    <div>
+                        <h3 class="text-xs md:text-sm font-bold text-emerald-600 uppercase tracking-wider mb-2">🔑 重要キーワード</h3>
+                        <div id="view-keywords" class="flex flex-wrap gap-2"></div>
+                    </div>
+                    <div>
+                        <h3 class="text-xs md:text-sm font-bold text-purple-600 uppercase tracking-wider mb-2">❓ 復習用Q&A</h3>
+                        <div id="view-flashcards" class="space-y-2"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="viewer-placeholder" class="h-full flex items-center justify-center text-slate-400 text-sm">
+                リストからカードを選択するか、新規ノートを作成してください。
+            </div>
+        </div>
+    </div>
+
+    <!-- APIキー設定モーダル -->
+    <div id="api-modal" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white p-6 rounded-xl max-w-md w-full shadow-xl">
+            <h3 class="font-bold text-lg mb-2">Google Gemini APIキーの設定</h3>
+            <p class="text-xs text-slate-500 mb-4">ブラウザのLocalStorageにのみ安全に保存されます。</p>
+            <input type="password" id="api-key-input" placeholder="AIzaSy..." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <div class="flex justify-end gap-2">
+                <button onclick="closeApiKeyModal()" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">キャンセル</button>
+                <button onclick="saveApiKey()" class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">保存する</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ★ ご自身で取得したGoogle OAuth クライアントIDをここにハードコーディングしてください
+        const GOOGLE_CLIENT_ID = '706740896974-elfi395qsq6t78eq1skmpvslgnahp83q.apps.googleusercontent.com';
+        const DRIVE_FILE_NAME = 'knowledge_store.json';
+
+        let knowledgeStore = { version: "1.0", items: [] };
+        let currentMobileTab = 'input';
+        let tokenClient = null;
+        let accessToken = null;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            loadFromLocalStorage();
+            checkApiKeyOnStart();
+            renderList();
+            adjustLayoutForScreen();
+            initGoogleTokenClient();
+        });
+
+        window.addEventListener('resize', adjustLayoutForScreen);
+
+        // --- Google Drive API 連携ロジック ---
+        function initGoogleTokenClient() {
+            if (typeof google === 'undefined' || !google.accounts) return;
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: GOOGLE_CLIENT_ID,
+                scope: 'https://www.googleapis.com/auth/drive.file',
+                callback: async (response) => {
+                    if (response.error !== undefined) {
+                        alert('Googleログインに失敗しました: ' + response.error);
+                        return;
+                    }
+                    accessToken = response.access_token;
+                    await syncDataWithDrive();
+                },
+            });
+        }
+
+        function handleGoogleDriveSync() {
+            if (!tokenClient) {
+                alert('Google認証クライアントの初期化が完了していません。');
+                return;
+            }
+            if (accessToken === null) {
+                // 初回はアクセストークンを要求（ポップアップログイン）
+                tokenClient.requestAccessToken({ prompt: 'consent' });
+            } else {
+                // すでにトークンがある場合はそのまま同期実行
+                syncDataWithDrive();
+            }
+        }
+
+        async function syncDataWithDrive() {
+            const btn = document.querySelector('button[onclick="handleGoogleDriveSync()"]');
+            btn.innerText = '同期中...';
+            try {
+                // 1. Googleドライブから同名ファイルを検索
+                const searchRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=name='${DRIVE_FILE_NAME}' and trashed=false`, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                const searchData = await searchRes.json();
+
+                if (searchData.files && searchData.files.length > 0) {
+                    // ファイルが存在する場合：クラウドからデータを取得してローカルとマージ（またはダウンロード）
+                    const fileId = searchData.files[0].id;
+                    const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+                        headers: { 'Authorization': `Bearer ${accessToken}` }
+                    });
+                    const cloudData = await fileRes.json();
+
+                    if (cloudData && cloudData.items) {
+                        // クラウドのデータとローカルデータを結合（IDが重複しないようにマージ）
+                        const localIds = new Set(knowledgeStore.items.map(i => i.id));
+                        cloudData.items.forEach(ci => {
+                            if (!localIds.has(ci.id)) {
+                                knowledgeStore.items.push(ci);
+                            }
+                        });
+                        saveToLocalStorage();
+                        renderList();
+                    }
+                }
+
+                // 2. 現在のローカルデータをGoogleドライブへアップロード（上書き保存）
+                const fileContent = JSON.stringify(knowledgeStore, null, 2);
+                
+                if (searchData.files && searchData.files.length > 0) {
+                    // 既存ファイルを更新
+                    const fileId = searchData.files[0].id;
+                    await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Authorization': `Bearer ${accessToken}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: fileContent
+                    });
+                } else {
+                    // 新規ファイルを作成
+                    const metadata = { name: DRIVE_FILE_NAME, mimeType: 'application/json' };
+                    const form = new FormData();
+                    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+                    form.append('file', new Blob([fileContent], { type: 'application/json' }));
+
+                    await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${accessToken}` },
+                        body: form
+                    });
+                }
+
+                alert('✅ Googleドライブとの同期が完了しました！');
+            } catch (err) {
+                console.error(err);
+                alert('同期中にエラーが発生しました: ' + err.message);
+            } finally {
+                btn.innerText = 'Gドライブ同期';
+            }
+        }
+
+        // --- 既存の画面制御・AI処理ロジック ---
+        function adjustLayoutForScreen() {
+            const paneLeft = document.getElementById('pane-left');
+            const paneRight = document.getElementById('pane-right');
+            const sectionInput = document.getElementById('section-input');
+            const sectionList = document.getElementById('section-list');
+
+            if (window.innerWidth >= 768) {
+                paneLeft.classList.remove('hidden');
+                paneRight.classList.remove('hidden');
+                sectionInput.classList.remove('hidden');
+                sectionList.classList.remove('hidden');
+            } else {
+                switchTab(currentMobileTab);
+            }
+        }
+
+        function switchTab(tab) {
+            currentMobileTab = tab;
+            const paneLeft = document.getElementById('pane-left');
+            const paneRight = document.getElementById('pane-right');
+            const sectionInput = document.getElementById('section-input');
+            const sectionList = document.getElementById('section-list');
+            
+            const btnInput = document.getElementById('tab-input');
+            const btnList = document.getElementById('tab-list');
+            const btnViewer = document.getElementById('tab-viewer');
+
+            [btnInput, btnList, btnViewer].forEach(b => {
+                b.className = "flex-1 py-2 text-xs font-bold text-slate-600 bg-slate-200 rounded";
+            });
+
+            if (tab === 'input') {
+                paneLeft.classList.remove('hidden');
+                paneRight.classList.add('hidden');
+                sectionInput.classList.remove('hidden');
+                sectionList.classList.add('hidden');
+                btnInput.className = "flex-1 py-2 text-xs font-bold bg-white rounded shadow-sm text-blue-600";
+            } else if (tab === 'list') {
+                paneLeft.classList.remove('hidden');
+                paneRight.classList.add('hidden');
+                sectionInput.classList.add('hidden');
+                sectionList.classList.remove('hidden');
+                btnList.className = "flex-1 py-2 text-xs font-bold bg-white rounded shadow-sm text-blue-600";
+            } else if (tab === 'viewer') {
+                paneLeft.classList.add('hidden');
+                paneRight.classList.remove('hidden');
+                btnViewer.className = "flex-1 py-2 text-xs font-bold bg-white rounded shadow-sm text-blue-600";
+            }
+        }
+
+        function checkApiKeyOnStart() {
+            if (!localStorage.getItem('gemini_api_key')) openApiKeyModal();
+        }
+
+        function openApiKeyModal() {
+            document.getElementById('api-modal').classList.remove('hidden');
+            document.getElementById('api-key-input').value = localStorage.getItem('gemini_api_key') || '';
+        }
+
+        function closeApiKeyModal() { document.getElementById('api-modal').classList.add('hidden'); }
+
+        function saveApiKey() {
+            const key = document.getElementById('api-key-input').value.trim();
+            if (key) {
+                localStorage.setItem('gemini_api_key', key);
+                alert('APIキーを保存しました。');
+                closeApiKeyModal();
+            } else { alert('有効なキーを入力してください。'); }
+        }
+
+        function saveToLocalStorage() { localStorage.setItem('knowledge_store', JSON.stringify(knowledgeStore)); }
+        function loadFromLocalStorage() {
+            const saved = localStorage.getItem('knowledge_store');
+            if (saved) { try { knowledgeStore = JSON.parse(saved); } catch(e) { console.error(e); } }
+        }
+
+        function linkWithSeries(newItem) {
+            if (!newItem.seriesName) return;
+            const sameSeriesItems = knowledgeStore.items.filter(i => i.seriesName === newItem.seriesName);
+            if (sameSeriesItems.length > 0) {
+                const prevItem = sameSeriesItems[0];
+                newItem.prevId = prevItem.id;
+                prevItem.nextId = newItem.id;
+            }
+        }
+
+        async function processAIInput() {
+            const apiKey = localStorage.getItem('gemini_api_key');
+            if (!apiKey) { openApiKeyModal(); return; }
+
+            const rawText = document.getElementById('raw-input-text').value.trim();
+            const seriesName = document.getElementById('series-input').value.trim();
+            if (!rawText) { alert('インプットテキストを入力してください。'); return; }
+
+            const btn = document.getElementById('process-btn');
+            btn.disabled = true; btn.innerText = 'AI処理中...';
+
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+            const prompt = `あなたは優秀な学習アシスタントです。以下の「学習メモ・テキスト」を分析し、必ず以下のJSONスキーマ形式のみで出力してください。余計な文章やMarkdownバッククォートは含めないでください。\n\n{"title": "タイトル(20文字程度)", "summary": ["要点1","要点2","要点3"], "keywords": [{"term": "用語", "definition": "定義"}], "flashcards": [{"question": "問い", "answer": "答え"}]}\n\n【学習メモ・テキスト】\n${rawText}`;
+
+            try {
+                const response = await fetch(endpoint, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.2 } })
+                });
+                if (!response.ok) throw new Error('API通信に失敗しました。');
+
+                const data = await response.json();
+                const parsedData = JSON.parse(data.candidates[0].content.parts[0].text);
+
+                const newItem = {
+                    id: "item_" + Date.now(),
+                    title: parsedData.title || "無題のノート",
+                    createdAt: new Date().toISOString().split('T')[0],
+                    seriesName: seriesName || "",
+                    prevId: null,
+                    nextId: null,
+                    rawInput: rawText,
+                    digest: { summary: parsedData.summary || [], keywords: parsedData.keywords || [], flashcards: parsedData.flashcards || [] }
+                };
+
+                linkWithSeries(newItem);
+                knowledgeStore.items.unshift(newItem);
+                saveToLocalStorage();
+                renderList();
+                selectItem(newItem.id);
+
+                document.getElementById('raw-input-text').value = '';
+                if (window.innerWidth < 768) switchTab('viewer');
+            } catch (err) {
+                alert('エラー: ' + err.message);
+            } finally {
+                btn.disabled = false; btn.innerText = 'AIで要約＆カード化';
+            }
+        }
+
+        function renderList() {
+            const container = document.getElementById('card-list');
+            const query = document.getElementById('search-input').value.toLowerCase();
+            const filtered = knowledgeStore.items.filter(i => i.title.toLowerCase().includes(query) || i.rawInput.toLowerCase().includes(query) || i.seriesName.toLowerCase().includes(query));
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">データがありません。</p>`;
+                return;
+            }
+
+            container.innerHTML = filtered.map(item => `
+                <div onclick="selectItem('${item.id}')" class="p-3 bg-slate-50 hover:bg-blue-50 border border-slate-200 rounded-lg cursor-pointer transition">
+                    ${item.seriesName ? `<span class="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-semibold inline-block mb-1">${escapeHTML(item.seriesName)}</span>` : ''}
+                    <h4 class="font-semibold text-xs md:text-sm text-slate-800 mb-1 truncate">${escapeHTML(item.title)}</h4>
+                    <p class="text-[10px] text-slate-400">${item.createdAt}</p>
+                </div>
+            `).join('');
+        }
+
+        function selectItem(id) {
+            const item = knowledgeStore.items.find(i => i.id === id);
+            if (!item) return;
+
+            document.getElementById('viewer-placeholder').classList.add('hidden');
+            const viewer = document.getElementById('viewer-container');
+            viewer.classList.remove('hidden');
+
+            const seriesBadge = document.getElementById('view-series');
+            if (item.seriesName) {
+                seriesBadge.innerText = item.seriesName;
+                seriesBadge.classList.remove('hidden');
+            } else {
+                seriesBadge.classList.add('hidden');
+            }
+
+            document.getElementById('view-title').innerText = item.title;
+            document.getElementById('view-date').innerText = item.createdAt;
+
+            const navContainer = document.getElementById('series-nav');
+            const prevBtn = document.getElementById('prev-btn');
+            const nextBtn = document.getElementById('next-btn');
+
+            let hasNav = false;
+            if (item.prevId) {
+                const prevItem = knowledgeStore.items.find(i => i.id === item.prevId);
+                if (prevItem) {
+                    prevBtn.innerHTML = `← ${escapeHTML(prevItem.title)}`;
+                    prevBtn.onclick = () => selectItem(item.prevId);
+                    prevBtn.classList.remove('hidden');
+                    hasNav = true;
+                } else { prevBtn.classList.add('hidden'); }
+            } else { prevBtn.classList.add('hidden'); }
+
+            if (item.nextId) {
+                const nextItem = knowledgeStore.items.find(i => i.id === item.nextId);
+                if (nextItem) {
+                    nextBtn.innerHTML = `${escapeHTML(nextItem.title)} →`;
+                    nextBtn.onclick = () => selectItem(item.nextId);
+                    nextBtn.classList.remove('hidden');
+                    hasNav = true;
+                } else { nextBtn.classList.add('hidden'); }
+            } else { nextBtn.classList.add('hidden'); }
+
+            if (hasNav) {
+                navContainer.classList.remove('hidden');
+            } else {
+                navContainer.classList.add('hidden');
+            }
+
+            document.getElementById('view-summary').innerHTML = item.digest.summary.map(s => `<li>${escapeHTML(s)}</li>`).join('');
+            document.getElementById('view-keywords').innerHTML = item.digest.keywords.map(k => `<span class="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-md text-xs"><strong>${escapeHTML(k.term)}:</strong> ${escapeHTML(k.definition)}</span>`).join('');
+            document.getElementById('view-flashcards').innerHTML = item.digest.flashcards.map((f, idx) => `<div class="bg-slate-50 border border-slate-200 p-3 rounded-lg text-xs md:text-sm"><p class="font-medium text-slate-800 mb-1">Q${idx+1}. ${escapeHTML(f.question)}</p><p class="text-slate-600 pl-3 border-l-2 border-purple-500">A. ${escapeHTML(f.answer)}</p></div>`).join('');
+
+            if (window.innerWidth < 768) switchTab('viewer');
+        }
+
+        function escapeHTML(str) {
+            return str.replace(/[&<>'"]/g, t => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[t] || t));
+        }
+    </script>
+</body>
+</html>
