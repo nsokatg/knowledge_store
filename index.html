@@ -70,8 +70,8 @@
                 
                 <!-- 前後のカードナビゲーション -->
                 <div id="series-nav" class="flex justify-between items-center bg-slate-50 border border-slate-200 p-2.5 rounded-lg mb-4 text-xs hidden">
-                    <button id="prev-btn" onclick="" class="text-blue-600 hover:underline font-medium text-left truncate max-w-[45%]">← 前へ</button>
-                    <button id="next-btn" onclick="" class="text-blue-600 hover:underline font-medium text-right truncate max-w-[45%] ml-auto">次へ →</button>
+                    <button id="prev-btn" class="text-blue-600 hover:underline font-medium text-left truncate max-w-[45%]">← 前へ</button>
+                    <button id="next-btn" class="text-blue-600 hover:underline font-medium text-right truncate max-w-[45%] ml-auto">次へ →</button>
                 </div>
 
                 <hr class="border-slate-100 mb-4">
@@ -164,7 +164,6 @@
             const originalText = btn.innerText;
             btn.innerText = '同期中...';
             try {
-                // 1. Googleドライブから同名ファイルを検索
                 const searchRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=name='${DRIVE_FILE_NAME}' and trashed=false`, {
                     headers: { 'Authorization': `Bearer ${accessToken}` }
                 });
@@ -178,7 +177,7 @@
                     if (fileRes.ok) {
                         const cloudData = await fileRes.json();
                         if (cloudData && cloudData.items) {
-                            const localIds = new Set(knowledgeStore.items.items ? knowledgeStore.items.map(i => i.id) : knowledgeStore.items.map(i => i.id));
+                            const localIds = new Set(knowledgeStore.items.map(i => i.id));
                             cloudData.items.forEach(ci => {
                                 if (!localIds.has(ci.id)) {
                                     knowledgeStore.items.push(ci);
@@ -190,7 +189,6 @@
                     }
                 }
 
-                // 2. 現在のローカルデータをGoogleドライブへアップロード（上書きまたは新規作成）
                 const fileContent = JSON.stringify(knowledgeStore, null, 2);
                 
                 if (searchData.files && searchData.files.length > 0) {
@@ -204,7 +202,6 @@
                         body: fileContent
                     });
                 } else {
-                    // multipart/related を正確に構築
                     const metadata = { name: DRIVE_FILE_NAME, mimeType: 'application/json' };
                     const form = new FormData();
                     form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
@@ -325,7 +322,8 @@
             const btn = document.getElementById('process-btn');
             btn.disabled = true; btn.innerText = 'AI処理中...';
 
-            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+            // モデル名を最新の gemini-3.5-flash に設定
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
             const prompt = `あなたは優秀な学習アシスタントです。以下の「学習メモ・テキスト」を分析し、必ず以下のJSONスキーマ形式のみで出力してください。余計な文章やMarkdownバッククォートは含めないでください。\n\n{"title": "タイトル(20文字程度)", "summary": ["要点1","要点2","要点3"], "keywords": [{"term": "用語", "definition": "定義"}], "flashcards": [{"question": "問い", "answer": "答え"}]}\n\n【学習メモ・テキスト】\n${rawText}`;
 
             try {
@@ -334,10 +332,17 @@
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.2 } })
                 });
-                if (!response.ok) throw new Error('API通信に失敗しました。');
+                
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(errData.error?.message || 'API通信に失敗しました。');
+                }
 
                 const data = await response.json();
-                const parsedData = JSON.parse(data.candidates[0].content.parts[0].text);
+                const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!textContent) throw new Error('AIからの応答データが空です。');
+
+                const parsedData = JSON.parse(textContent);
 
                 const newItem = {
                     id: "item_" + Date.now(),
@@ -359,6 +364,7 @@
                 document.getElementById('raw-input-text').value = '';
                 if (window.innerWidth < 768) switchTab('viewer');
             } catch (err) {
+                console.error(err);
                 alert('エラー: ' + err.message);
             } finally {
                 btn.disabled = false; btn.innerText = 'AIで要約＆カード化';
