@@ -49,8 +49,17 @@
 
             <!-- ストック検索＆一覧 -->
             <div id="section-list" class="flex flex-col flex-1">
-                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">📚 ストック一覧</h3>
-                <input type="text" id="search-input" placeholder="キーワードで検索..." oninput="renderList()" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <div class="flex justify-between items-center mb-1">
+                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">📚 ストック一覧</h3>
+                    <span id="search-mode-badge" class="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-medium">通常検索中</span>
+                </div>
+                
+                <div class="flex gap-1 mb-2">
+                    <input type="text" id="search-input" placeholder="キーワードで検索..." oninput="onSearchInputChanged()" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <button onclick="performAISearch()" id="ai-search-btn" class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-lg text-xs font-semibold shrink-0 shadow transition flex items-center gap-1" title="AIが意味や関連度（スコア）に基づいてセマンティック検索を行います">
+                        ✨ AI検索
+                    </button>
+                </div>
                 <div id="card-list" class="space-y-2">
                     <!-- 動的カードリスト -->
                 </div>
@@ -113,7 +122,7 @@
     <div id="api-modal" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center p-4 z-50">
         <div class="bg-white p-6 rounded-xl max-w-md w-full shadow-xl">
             <h3 class="font-bold text-lg mb-2">Google Gemini APIキーの設定</h3>
-            <p class="text-xs text-slate-500 mb-4">ブラウザのLocalStorageにのみ安全に保存されます。</p>
+            <p class="text-xs text-slate-500 mb-4">このブラウザのLocalStorageに保存されます。</p>
             <input type="password" id="api-key-input" placeholder="AIzaSy..." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500">
             <div class="flex justify-end gap-2">
                 <button onclick="closeApiKeyModal()" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">キャンセル</button>
@@ -144,6 +153,8 @@
         let currentSelectedId = null;
         let tokenClient = null;
         let accessToken = null;
+
+        let aiSearchResults = null;
 
         window.addEventListener('DOMContentLoaded', () => {
             loadFromLocalStorage();
@@ -208,6 +219,8 @@
                                 }
                             });
                             saveToLocalStorage();
+                            
+                            aiSearchResults = null;
                             renderList();
                         }
                     }
@@ -345,7 +358,6 @@
             const btn = document.getElementById('process-btn');
             btn.disabled = true; btn.innerText = 'AI処理中...';
 
-            // 安定性を考慮し、現在利用しやすい標準モデルを指定
             const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
             const prompt = `あなたは優秀な学習・コード整理アシスタントです。以下の「学習メモ・コマンド／コード一覧」を分析し、**入力された元データの内容やコードは一切省略せず、すべて綺麗に構造化された一覧に分解・整理してください**。さらに、全体ダイジェスト、重要キーワード、復習用Q&Aを作成し、必ず以下のJSONスキーマ形式のみで出力してください。余計な文章やMarkdownバッククォートは含めないでください。
 
@@ -397,6 +409,7 @@ ${rawText}`;
                 linkWithSeries(newItem);
                 knowledgeStore.items.unshift(newItem);
                 saveToLocalStorage();
+                aiSearchResults = null; 
                 renderList();
                 selectItem(newItem.id);
 
@@ -430,6 +443,7 @@ ${rawText}`;
 
                 knowledgeStore.items.splice(index, 1);
                 saveToLocalStorage();
+                aiSearchResults = null;
                 renderList();
 
                 currentSelectedId = null;
@@ -506,6 +520,10 @@ ${updatedRawText}`;
                 };
 
                 saveToLocalStorage();
+                
+                // 追記・再整理後にAI検索結果をリセットして通常検索に戻す
+                aiSearchResults = null;
+                
                 renderList();
                 selectItem(item.id);
                 closeAppendModal();
@@ -518,25 +536,154 @@ ${updatedRawText}`;
             }
         }
 
+        function onSearchInputChanged() {
+            if (aiSearchResults !== null) {
+                aiSearchResults = null; 
+            }
+            renderList();
+        }
+
+        async function performAISearch() {
+            const apiKey = localStorage.getItem('gemini_api_key');
+            if (!apiKey) { openApiKeyModal(); return; }
+
+            const query = document.getElementById('search-input').value.trim();
+            if (!query) {
+                alert('AI検索するキーワードや質問を入力してください。');
+                return;
+            }
+
+            if (knowledgeStore.items.length === 0) {
+                alert('保存されているカードがありません。');
+                return;
+            }
+
+            const aiBtn = document.getElementById('ai-search-btn');
+            const originalText = aiBtn.innerHTML;
+            aiBtn.disabled = true;
+            aiBtn.innerHTML = '✨ 検索中...';
+
+            const lightweightIndex = knowledgeStore.items.map(item => ({
+                id: item.id,
+                title: item.title,
+                seriesName: item.seriesName || "",
+                summary: item.digest.summary || [],
+                keywords: (item.digest.keywords || []).map(k => k.term)
+            }));
+
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
+            const prompt = `あなたは高度なナレッジ検索アシスタントです。以下の「カードの軽量インデックス一覧」と<b>ユーザーの検索クエリ</b>を分析し、ユーザーの検索意図に対する関連度スコア（0.0〜1.0）を算出して、関連度が高い順に並べた結果を必ず以下のJSON形式のみで出力してください。
+余計な解説文やMarkdownバッククォートは含めないでください。該当するものが無い場合は results を空配列 [] にしてください。
+
+{
+  "results": [
+    {
+      "id": "item_xxxx",
+      "score": 0.96
+    },
+    {
+      "id": "item_yyyy",
+      "score": 0.82
+    }
+  ]
+}
+
+【検索クエリ】
+${query}
+
+【カードの軽量インデックス一覧】
+${JSON.stringify(lightweightIndex, null, 2)}`;
+
+            try {
+                const response = await fetch(endpoint, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.1 } })
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(errData.error?.message || 'API通信に失敗しました。');
+                }
+
+                const data = await response.json();
+                const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!textContent) throw new Error('AIからの応答データが空です。');
+
+                const parsed = JSON.parse(textContent);
+
+                // 堅牢なバリデーション＆サニタイズ処理
+                const validIds = new Set(knowledgeStore.items.map(i => i.id));
+                aiSearchResults = (parsed.results || [])
+                    .filter(r => validIds.has(r.id))
+                    .map(r => ({
+                        id: r.id,
+                        score: Math.max(0, Math.min(1, Number(r.score) || 0))
+                    }))
+                    .filter((r, index, self) =>
+                        self.findIndex(x => x.id === r.id) === index
+                    )
+                    .sort((a, b) => b.score - a.score);
+
+                renderList();
+            } catch (err) {
+                console.error(err);
+                alert('AI検索エラー: ' + err.message);
+            } finally {
+                aiBtn.disabled = false;
+                aiBtn.innerHTML = originalText;
+            }
+        }
+
         function renderList() {
             const container = document.getElementById('card-list');
             const searchInput = document.getElementById('search-input');
             const query = searchInput ? searchInput.value.toLowerCase() : '';
+            const badge = document.getElementById('search-mode-badge');
             const items = knowledgeStore.items || [];
-            const filtered = items.filter(i => (i.title && i.title.toLowerCase().includes(query)) || (i.rawInput && i.rawInput.toLowerCase().includes(query)) || (i.seriesName && i.seriesName.toLowerCase().includes(query)));
 
-            if (filtered.length === 0) {
-                container.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">データがありません。</p>`;
+            let displayList = [];
+
+            if (aiSearchResults !== null) {
+                badge.innerText = `✨ AI検索結果 (${aiSearchResults.length}件)`;
+                badge.className = "text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-bold";
+                
+                displayList = aiSearchResults.map(res => {
+                    const item = items.find(i => i.id === res.id);
+                    return item ? { ...item, score: res.score } : null;
+                }).filter(Boolean);
+            } else {
+                badge.innerText = "通常検索中";
+                badge.className = "text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-medium";
+                
+                displayList = items.filter(i => 
+                    (i.title && i.title.toLowerCase().includes(query)) || 
+                    (i.rawInput && i.rawInput.toLowerCase().includes(query)) || 
+                    (i.seriesName && i.seriesName.toLowerCase().includes(query))
+                );
+            }
+
+            if (displayList.length === 0) {
+                container.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">該当するデータがありません。</p>`;
                 return;
             }
 
-            container.innerHTML = filtered.map(item => `
-                <div onclick="selectItem('${item.id}')" class="p-3 bg-slate-50 hover:bg-blue-50 border ${item.id === currentSelectedId ? 'border-blue-500 bg-blue-50/50' : 'border-slate-200'} rounded-lg cursor-pointer transition">
-                    ${item.seriesName ? `<span class="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-semibold inline-block mb-1">${escapeHTML(item.seriesName)}</span>` : ''}
-                    <h4 class="font-semibold text-xs md:text-sm text-slate-800 mb-1 truncate">${escapeHTML(item.title)}</h4>
-                    <p class="text-[10px] text-slate-400">${item.createdAt}</p>
-                </div>
-            `).join('');
+            container.innerHTML = displayList.map(item => {
+                const scoreBadge = item.score !== undefined 
+                    ? `<span class="text-[10px] bg-purple-50 text-purple-700 font-bold px-1.5 py-0.5 rounded ml-2">関連度 ${Math.round(item.score * 100)}%</span>` 
+                    : '';
+
+                return `
+                    <div onclick="selectItem('${item.id}')" class="p-3 bg-slate-50 hover:bg-blue-50 border ${item.id === currentSelectedId ? 'border-blue-500 bg-blue-50/50' : 'border-slate-200'} rounded-lg cursor-pointer transition">
+                        <div class="flex justify-between items-start mb-1">
+                            ${item.seriesName ? `<span class="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-semibold">${escapeHTML(item.seriesName)}</span>` : '<span></span>'}
+                            ${scoreBadge}
+                        </div>
+                        <h4 class="font-semibold text-xs md:text-sm text-slate-800 mb-1 truncate">${escapeHTML(item.title)}</h4>
+                        <p class="text-[10px] text-slate-400">${item.createdAt}</p>
+                    </div>
+                `;
+            }).join('');
         }
 
         function selectItem(id) {
@@ -595,7 +742,6 @@ ${updatedRawText}`;
             document.getElementById('view-summary').innerHTML = item.digest.summary.map(s => `<li>${escapeHTML(s)}</li>`).join('');
             document.getElementById('view-keywords').innerHTML = item.digest.keywords.map(k => `<span class="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-md text-xs"><strong>${escapeHTML(k.term)}:</strong> ${escapeHTML(k.definition)}</span>`).join('');
             
-            // 入力内容の完全一覧セクションの描画
             const rawItems = item.digest.rawItems || [{ label: "元ノート", content: item.rawInput }];
             document.getElementById('view-raw-list').innerHTML = rawItems.map(r => `
                 <div class="bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-xs">
