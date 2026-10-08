@@ -343,7 +343,7 @@
             const btn = document.getElementById('process-btn');
             btn.disabled = true; btn.innerText = 'AI処理中...';
 
-            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
             const prompt = `あなたは優秀な学習アシスタントです。以下の「学習メモ・テキスト」を分析し、必ず以下のJSONスキーマ形式のみで出力してください。余計な文章やMarkdownバッククォートは含めないでください。\n\n{"title": "タイトル(20文字程度)", "summary": ["要点1","要点2","要点3"], "keywords": [{"term": "用語", "definition": "定義"}], "flashcards": [{"question": "問い", "answer": "答え"}]}\n\n【学習メモ・テキスト】\n${rawText}`;
 
             try {
