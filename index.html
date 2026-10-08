@@ -37,13 +37,13 @@
                 <h2 class="font-bold text-sm mb-2 text-slate-800">✍️ 新規学習ノート</h2>
                 
                 <div class="mb-2">
-                    <label class="block text-[11px] font-semibold text-slate-500 mb-1">シリーズ・カテゴリー名（例: 〇〇研修 / 読書感想）</label>
-                    <input type="text" id="series-input" placeholder="例: リーダーシップ研修 1日目" class="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <label class="block text-[11px] font-semibold text-slate-500 mb-1">シリーズ・カテゴリー名（例: 〇〇研修 / コマンド集）</label>
+                    <input type="text" id="series-input" placeholder="例: Linuxコマンド集 基礎" class="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-blue-500">
                 </div>
 
-                <textarea id="raw-input-text" rows="4" placeholder="読書メモ、研修の気づき、社会見学の学びなどをペースト..." class="w-full p-3 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3"></textarea>
+                <textarea id="raw-input-text" rows="5" placeholder="コマンド一覧やコード、読書メモなどをペースト..." class="w-full p-3 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3"></textarea>
                 <div class="flex justify-end">
-                    <button onclick="processAIInput()" id="process-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs md:text-sm font-semibold shadow transition">AIで要約＆カード化</button>
+                    <button onclick="processAIInput()" id="process-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs md:text-sm font-semibold shadow transition">AIで完全整理＆カード化</button>
                 </div>
             </div>
 
@@ -65,10 +65,10 @@
                 <div class="flex justify-between items-center mb-2">
                     <div class="flex items-center gap-2">
                         <span id="view-series" class="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-xs font-semibold hidden">シリーズ名</span>
-                        <span id="view-date" class="text-xs text-slate-400">2026-10-06</span>
+                        <span id="view-date" class="text-xs text-slate-400">2026-10-08</span>
                     </div>
                     <div class="flex gap-2">
-                        <button onclick="openAppendModal()" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded font-medium transition">➕ 追記・再要約</button>
+                        <button onclick="openAppendModal()" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded font-medium transition">➕ 追記・再整理</button>
                         <button onclick="deleteCurrentItem()" class="text-xs bg-red-50 hover:bg-red-100 text-red-600 px-2.5 py-1 rounded font-medium transition">🗑️ 削除</button>
                     </div>
                 </div>
@@ -85,12 +85,16 @@
                 
                 <div class="space-y-6">
                     <div>
-                        <h3 class="text-xs md:text-sm font-bold text-blue-600 uppercase tracking-wider mb-2">💡 3行サマリー</h3>
+                        <h3 class="text-xs md:text-sm font-bold text-blue-600 uppercase tracking-wider mb-2">💡 全体ダイジェスト</h3>
                         <ul id="view-summary" class="list-disc pl-5 space-y-1.5 text-xs md:text-sm text-slate-700 leading-relaxed"></ul>
                     </div>
                     <div>
                         <h3 class="text-xs md:text-sm font-bold text-emerald-600 uppercase tracking-wider mb-2">🔑 重要キーワード</h3>
                         <div id="view-keywords" class="flex flex-wrap gap-2"></div>
+                    </div>
+                    <div>
+                        <h3 class="text-xs md:text-sm font-bold text-indigo-600 uppercase tracking-wider mb-2">📂 入力内容の完全一覧（元テキスト・コード）</h3>
+                        <div id="view-raw-list" class="space-y-2"></div>
                     </div>
                     <div>
                         <h3 class="text-xs md:text-sm font-bold text-purple-600 uppercase tracking-wider mb-2">❓ 復習用Q&A</h3>
@@ -121,12 +125,12 @@
     <!-- 追記モーダル -->
     <div id="append-modal" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center p-4 z-50">
         <div class="bg-white p-6 rounded-xl max-w-lg w-full shadow-xl">
-            <h3 class="font-bold text-base mb-1 text-slate-950">📝 ノートに追記して再要約</h3>
-            <p class="text-xs text-slate-500 mb-3">追加のメモや気づきを入力してください。既存の元テキストとマージしてAIが再度カード全体をアップデートします。</p>
-            <textarea id="append-input-text" rows="5" placeholder="追加したいメモや新たな気づきを入力..." class="w-full p-3 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"></textarea>
+            <h3 class="font-bold text-base mb-1 text-slate-950">📝 ノートに追記して再整理</h3>
+            <p class="text-xs text-slate-500 mb-3">追加のコードやメモを入力してください。元の内容とマージして全体が再整理されます。</p>
+            <textarea id="append-input-text" rows="5" placeholder="追加したいコードやメモを入力..." class="w-full p-3 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"></textarea>
             <div class="flex justify-end gap-2">
                 <button onclick="closeAppendModal()" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">キャンセル</button>
-                <button onclick="processAppendAI()" id="append-process-btn" class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">追記して再要約する</button>
+                <button onclick="processAppendAI()" id="append-process-btn" class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">追記して再整理する</button>
             </div>
         </div>
     </div>
@@ -137,7 +141,7 @@
 
         let knowledgeStore = { version: "1.0", items: [] };
         let currentMobileTab = 'input';
-        let currentSelectedId = null; // 現在選択中のカードIDを保持
+        let currentSelectedId = null;
         let tokenClient = null;
         let accessToken = null;
 
@@ -151,7 +155,6 @@
 
         window.addEventListener('resize', adjustLayoutForScreen);
 
-        // --- Google Drive API 連携ロジック ---
         function initGoogleTokenClient() {
             if (typeof google === 'undefined' || !google.accounts) return;
             tokenClient = google.accounts.oauth2.initTokenClient({
@@ -244,7 +247,6 @@
             }
         }
 
-        // --- 画面制御・AI処理ロジック ---
         function adjustLayoutForScreen() {
             const paneLeft = document.getElementById('pane-left');
             const paneRight = document.getElementById('pane-right');
@@ -343,8 +345,20 @@
             const btn = document.getElementById('process-btn');
             btn.disabled = true; btn.innerText = 'AI処理中...';
 
+            // 安定性を考慮し、現在利用しやすい標準モデルを指定
             const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
-            const prompt = `あなたは優秀な学習アシスタントです。以下の「学習メモ・テキスト」を分析し、必ず以下のJSONスキーマ形式のみで出力してください。余計な文章やMarkdownバッククォートは含めないでください。\n\n{"title": "タイトル(20文字程度)", "summary": ["要点1","要点2","要点3"], "keywords": [{"term": "用語", "definition": "定義"}], "flashcards": [{"question": "問い", "answer": "答え"}]}\n\n【学習メモ・テキスト】\n${rawText}`;
+            const prompt = `あなたは優秀な学習・コード整理アシスタントです。以下の「学習メモ・コマンド／コード一覧」を分析し、**入力された元データの内容やコードは一切省略せず、すべて綺麗に構造化された一覧に分解・整理してください**。さらに、全体ダイジェスト、重要キーワード、復習用Q&Aを作成し、必ず以下のJSONスキーマ形式のみで出力してください。余計な文章やMarkdownバッククォートは含めないでください。
+
+{
+  "title": "タイトル(20文字程度)",
+  "summary": ["要点1","要点2","要点3"],
+  "keywords": [{"term": "用語", "definition": "定義"}],
+  "rawItems": [{"label": "項目名やコード名", "content": "具体的なコードや詳細説明"}],
+  "flashcards": [{"question": "問い", "answer": "答え"}]
+}
+
+【学習メモ・テキスト】
+${rawText}`;
 
             try {
                 const response = await fetch(endpoint, {
@@ -372,7 +386,12 @@
                     prevId: null,
                     nextId: null,
                     rawInput: rawText,
-                    digest: { summary: parsedData.summary || [], keywords: parsedData.keywords || [], flashcards: parsedData.flashcards || [] }
+                    digest: {
+                        summary: parsedData.summary || [],
+                        keywords: parsedData.keywords || [],
+                        rawItems: parsedData.rawItems || [{ label: "元コンテンツ", content: rawText }],
+                        flashcards: parsedData.flashcards || []
+                    }
                 };
 
                 linkWithSeries(newItem);
@@ -389,11 +408,10 @@
                 console.error(err);
                 alert('エラー: ' + err.message);
             } finally {
-                btn.disabled = false; btn.innerText = 'AIで要約＆カード化';
+                btn.disabled = false; btn.innerText = 'AIで完全整理＆カード化';
             }
         }
 
-        // --- 新機能：カード削除 ---
         function deleteCurrentItem() {
             if (!currentSelectedId) return;
             if (!confirm('このカードを削除してもよろしいですか？')) return;
@@ -401,8 +419,6 @@
             const index = knowledgeStore.items.findIndex(i => i.id === currentSelectedId);
             if (index !== -1) {
                 const target = knowledgeStore.items[index];
-                
-                // シリーズの前後リンクのつなぎ直し
                 if (target.prevId) {
                     const prev = knowledgeStore.items.find(i => i.id === target.prevId);
                     if (prev) prev.nextId = target.nextId;
@@ -416,7 +432,6 @@
                 saveToLocalStorage();
                 renderList();
 
-                // プレースホルダーに戻す
                 currentSelectedId = null;
                 document.getElementById('viewer-container').classList.add('hidden');
                 document.getElementById('viewer-placeholder').classList.remove('hidden');
@@ -424,7 +439,6 @@
             }
         }
 
-        // --- 新機能：追記・再要約モーダル制御 ---
         function openAppendModal() {
             if (!currentSelectedId) return;
             document.getElementById('append-input-text').value = '';
@@ -446,13 +460,23 @@
             if (!item) return;
 
             const btn = document.getElementById('append-process-btn');
-            btn.disabled = true; btn.innerText = 'AI再処理中...';
+            btn.disabled = true; btn.innerText = 'AI再整理中...';
 
-            // 既存の元テキストに追記分をマージ
-            const updatedRawText = item.rawInput + "\n\n【追記 (" + new Date().toISOString().split('T')[0] + ")】\n" + appendText;
+            const updatedRawText = item.rawInput + "\n\n【追加 (" + new Date().toISOString().split('T')[0] + ")】\n" + appendText;
 
             const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
-            const prompt = `あなたは優秀な学習アシスタントです。以下の「統合された学習メモ・テキスト全体」を改めて分析し、内容を反映した上で、必ず以下のJSONスキーマ形式のみで出力してください。余計な文章やMarkdownバッククォートは含めないでください。\n\n{"title": "タイトル(20文字程度)", "summary": ["要点1","要点2","要点3"], "keywords": [{"term": "用語", "definition": "定義"}], "flashcards": [{"question": "問い", "answer": "答え"}]}\n\n【学習メモ・テキスト全体】\n${updatedRawText}`;
+            const prompt = `あなたは優秀な学習・コード整理アシスタントです。以下の「統合された学習メモ・コード一覧全体」を改めて分析し、**追加された内容も含めてすべての元データやコードを省略せず綺麗に構造化された一覧に整理し直してください**。さらにダイジェスト、キーワード、Q&Aを更新し、必ず以下のJSONスキーマ形式のみで出力してください。余計な文章やMarkdownバッククォートは含めないでください。
+
+{
+  "title": "タイトル(20文字程度)",
+  "summary": ["要点1","要点2","要点3"],
+  "keywords": [{"term": "用語", "definition": "定義"}],
+  "rawItems": [{"label": "項目名やコード名", "content": "具体的なコードや詳細説明"}],
+  "flashcards": [{"question": "問い", "answer": "答え"}]
+}
+
+【学習メモ・テキスト全体】
+${updatedRawText}`;
 
             try {
                 const response = await fetch(endpoint, {
@@ -472,12 +496,12 @@
 
                 const parsedData = JSON.parse(textContent);
 
-                // データの更新
                 item.title = parsedData.title || item.title;
                 item.rawInput = updatedRawText;
                 item.digest = {
                     summary: parsedData.summary || item.digest.summary,
                     keywords: parsedData.keywords || item.digest.keywords,
+                    rawItems: parsedData.rawItems || item.digest.rawItems,
                     flashcards: parsedData.flashcards || item.digest.flashcards
                 };
 
@@ -485,12 +509,12 @@
                 renderList();
                 selectItem(item.id);
                 closeAppendModal();
-                alert('✨ 追記を反映してカードを再要約しました！');
+                alert('✨ 追記を反映してカード全体を再整理しました！');
             } catch (err) {
                 console.error(err);
                 alert('エラー: ' + err.message);
             } finally {
-                btn.disabled = false; btn.innerText = '追記して再要約する';
+                btn.disabled = false; btn.innerText = '追記して再整理する';
             }
         }
 
@@ -520,7 +544,7 @@
             if (!item) return;
 
             currentSelectedId = id;
-            renderList(); // 選択中のハイライトを更新
+            renderList();
 
             document.getElementById('viewer-placeholder').classList.add('hidden');
             const viewer = document.getElementById('viewer-container');
@@ -570,13 +594,23 @@
 
             document.getElementById('view-summary').innerHTML = item.digest.summary.map(s => `<li>${escapeHTML(s)}</li>`).join('');
             document.getElementById('view-keywords').innerHTML = item.digest.keywords.map(k => `<span class="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-md text-xs"><strong>${escapeHTML(k.term)}:</strong> ${escapeHTML(k.definition)}</span>`).join('');
+            
+            // 入力内容の完全一覧セクションの描画
+            const rawItems = item.digest.rawItems || [{ label: "元ノート", content: item.rawInput }];
+            document.getElementById('view-raw-list').innerHTML = rawItems.map(r => `
+                <div class="bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-xs">
+                    <span class="font-bold text-indigo-700 block mb-1">🔹 ${escapeHTML(r.label)}</span>
+                    <pre class="bg-white p-2 rounded border border-slate-200 font-mono text-slate-800 whitespace-pre-wrap overflow-x-auto">${escapeHTML(r.content)}</pre>
+                </div>
+            `).join('');
+
             document.getElementById('view-flashcards').innerHTML = item.digest.flashcards.map((f, idx) => `<div class="bg-slate-50 border border-slate-200 p-3 rounded-lg text-xs md:text-sm"><p class="font-medium text-slate-800 mb-1">Q${idx+1}. ${escapeHTML(f.question)}</p><p class="text-slate-600 pl-3 border-l-2 border-purple-500">A. ${escapeHTML(f.answer)}</p></div>`).join('');
 
             if (window.innerWidth < 768) switchTab('viewer');
         }
 
         function escapeHTML(str) {
-            return str.replace(/[&<>'"]/g, t => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[t] || t));
+            return String(str).replace(/[&<>'"]/g, t => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[t] || t));
         }
     </script>
 </body>
