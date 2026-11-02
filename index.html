@@ -161,13 +161,23 @@
             checkApiKeyOnStart();
             renderList();
             adjustLayoutForScreen();
-            initGoogleTokenClient();
+            
+            // Google認証ライブラリの読み込み完了を待って初期化
+            checkGoogleIdentityLoaded();
         });
 
         window.addEventListener('resize', adjustLayoutForScreen);
 
+        function checkGoogleIdentityLoaded() {
+            if (typeof google !== 'undefined' && google.accounts) {
+                initGoogleTokenClient();
+            } else {
+                setTimeout(checkGoogleIdentityLoaded, 100);
+            }
+        }
+
         function initGoogleTokenClient() {
-            if (typeof google === 'undefined' || !google.accounts) return;
+            if (tokenClient) return;
             tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: GOOGLE_CLIENT_ID,
                 scope: 'https://www.googleapis.com/auth/drive.file',
@@ -521,7 +531,6 @@ ${updatedRawText}`;
 
                 saveToLocalStorage();
                 
-                // 追記・再整理後にAI検索結果をリセットして通常検索に戻す
                 aiSearchResults = null;
                 
                 renderList();
@@ -612,7 +621,6 @@ ${JSON.stringify(lightweightIndex, null, 2)}`;
 
                 const parsed = JSON.parse(textContent);
 
-                // 堅牢なバリデーション＆サニタイズ処理
                 const validIds = new Set(knowledgeStore.items.map(i => i.id));
                 aiSearchResults = (parsed.results || [])
                     .filter(r => validIds.has(r.id))
@@ -669,94 +677,106 @@ ${JSON.stringify(lightweightIndex, null, 2)}`;
             }
 
             container.innerHTML = displayList.map(item => {
-                const scoreBadge = item.score !== undefined 
-                    ? `<span class="text-[10px] bg-purple-50 text-purple-700 font-bold px-1.5 py-0.5 rounded ml-2">関連度 ${Math.round(item.score * 100)}%</span>` 
-                    : '';
+                const isSelected = item.id === currentSelectedId;
+                const activeClass = isSelected ? 'border-blue-500 bg-blue-50/50 ring-1 ring-blue-500' : 'border-slate-200 hover:bg-slate-50';
+                const seriesHtml = item.seriesName ? `<span class="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium mr-1.5">${escapeHtml(item.seriesName)}</span>` : '';
+                const scoreHtml = item.score !== undefined ? `<span class="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold ml-auto">スコア: ${item.score.toFixed(2)}</span>` : '';
 
                 return `
-                    <div onclick="selectItem('${item.id}')" class="p-3 bg-slate-50 hover:bg-blue-50 border ${item.id === currentSelectedId ? 'border-blue-500 bg-blue-50/50' : 'border-slate-200'} rounded-lg cursor-pointer transition">
-                        <div class="flex justify-between items-start mb-1">
-                            ${item.seriesName ? `<span class="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-semibold">${escapeHTML(item.seriesName)}</span>` : '<span></span>'}
-                            ${scoreBadge}
+                    <div onclick="selectItem('${item.id}')" class="p-3 border rounded-lg cursor-pointer transition ${activeClass}">
+                        <div class="flex items-center justify-between mb-1">
+                            <div class="flex items-center truncate">
+                                ${seriesHtml}
+                                <span class="text-[10px] text-slate-400">${item.createdAt}</span>
+                            </div>
+                            ${scoreHtml}
                         </div>
-                        <h4 class="font-semibold text-xs md:text-sm text-slate-800 mb-1 truncate">${escapeHTML(item.title)}</h4>
-                        <p class="text-[10px] text-slate-400">${item.createdAt}</p>
+                        <h4 class="text-xs font-bold text-slate-900 truncate">${escapeHtml(item.title)}</h4>
                     </div>
                 `;
             }).join('');
         }
 
         function selectItem(id) {
+            currentSelectedId = id;
             const item = knowledgeStore.items.find(i => i.id === id);
             if (!item) return;
 
-            currentSelectedId = id;
             renderList();
 
             document.getElementById('viewer-placeholder').classList.add('hidden');
-            const viewer = document.getElementById('viewer-container');
-            viewer.classList.remove('hidden');
+            document.getElementById('viewer-container').classList.remove('hidden');
 
-            const seriesBadge = document.getElementById('view-series');
+            const seriesEl = document.getElementById('view-series');
             if (item.seriesName) {
-                seriesBadge.innerText = item.seriesName;
-                seriesBadge.classList.remove('hidden');
+                seriesEl.innerText = item.seriesName;
+                seriesEl.classList.remove('hidden');
             } else {
-                seriesBadge.classList.add('hidden');
+                seriesEl.classList.add('hidden');
             }
 
-            document.getElementById('view-title').innerText = item.title;
             document.getElementById('view-date').innerText = item.createdAt;
+            document.getElementById('view-title').innerText = item.title;
 
             const navContainer = document.getElementById('series-nav');
             const prevBtn = document.getElementById('prev-btn');
             const nextBtn = document.getElementById('next-btn');
 
-            let hasNav = false;
-            if (item.prevId) {
-                const prevItem = knowledgeStore.items.find(i => i.id === item.prevId);
-                if (prevItem) {
-                    prevBtn.innerHTML = `← ${escapeHTML(prevItem.title)}`;
-                    prevBtn.onclick = () => selectItem(item.prevId);
-                    prevBtn.classList.remove('hidden');
-                    hasNav = true;
-                } else { prevBtn.classList.add('hidden'); }
-            } else { prevBtn.classList.add('hidden'); }
-
-            if (item.nextId) {
-                const nextItem = knowledgeStore.items.find(i => i.id === item.nextId);
-                if (nextItem) {
-                    nextBtn.innerHTML = `${escapeHTML(nextItem.title)} →`;
-                    nextBtn.onclick = () => selectItem(item.nextId);
-                    nextBtn.classList.remove('hidden');
-                    hasNav = true;
-                } else { nextBtn.classList.add('hidden'); }
-            } else { nextBtn.classList.add('hidden'); }
-
-            if (hasNav) {
+            if (item.prevId || item.nextId) {
                 navContainer.classList.remove('hidden');
+                prevBtn.style.visibility = item.prevId ? 'visible' : 'hidden';
+                nextBtn.style.visibility = item.nextId ? 'visible' : 'hidden';
+
+                if (item.prevId) {
+                    const prevItem = knowledgeStore.items.find(i => i.id === item.prevId);
+                    prevBtn.innerText = `← ${prevItem ? prevItem.title : '前へ'}`;
+                    prevBtn.onclick = () => selectItem(item.prevId);
+                }
+                if (item.nextId) {
+                    const nextItem = knowledgeStore.items.find(i => i.id === item.nextId);
+                    nextBtn.innerText = `${nextItem ? nextItem.title : '次へ'} →`;
+                    nextBtn.onclick = () => selectItem(item.nextId);
+                }
             } else {
                 navContainer.classList.add('hidden');
             }
 
-            document.getElementById('view-summary').innerHTML = item.digest.summary.map(s => `<li>${escapeHTML(s)}</li>`).join('');
-            document.getElementById('view-keywords').innerHTML = item.digest.keywords.map(k => `<span class="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-md text-xs"><strong>${escapeHTML(k.term)}:</strong> ${escapeHTML(k.definition)}</span>`).join('');
-            
-            const rawItems = item.digest.rawItems || [{ label: "元ノート", content: item.rawInput }];
-            document.getElementById('view-raw-list').innerHTML = rawItems.map(r => `
-                <div class="bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-xs">
-                    <span class="font-bold text-indigo-700 block mb-1">🔹 ${escapeHTML(r.label)}</span>
-                    <pre class="bg-white p-2 rounded border border-slate-200 font-mono text-slate-800 whitespace-pre-wrap overflow-x-auto">${escapeHTML(r.content)}</pre>
+            const digest = item.digest || {};
+
+            const summaryEl = document.getElementById('view-summary');
+            summaryEl.innerHTML = (digest.summary || []).map(s => `<li>${escapeHtml(s)}</li>`).join('');
+
+            const kwEl = document.getElementById('view-keywords');
+            kwEl.innerHTML = (digest.keywords || []).map(k => `
+                <div class="bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md text-xs">
+                    <strong class="text-emerald-800">${escapeHtml(k.term)}</strong>: <span class="text-slate-600">${escapeHtml(k.definition)}</span>
                 </div>
             `).join('');
 
-            document.getElementById('view-flashcards').innerHTML = item.digest.flashcards.map((f, idx) => `<div class="bg-slate-50 border border-slate-200 p-3 rounded-lg text-xs md:text-sm"><p class="font-medium text-slate-800 mb-1">Q${idx+1}. ${escapeHTML(f.question)}</p><p class="text-slate-600 pl-3 border-l-2 border-purple-500">A. ${escapeHTML(f.answer)}</p></div>`).join('');
+            const rawListEl = document.getElementById('view-raw-list');
+            rawListEl.innerHTML = (digest.rawItems || []).map(r => `
+                <div class="bg-slate-50 border border-slate-200 p-3 rounded-lg">
+                    <h5 class="text-xs font-bold text-indigo-700 mb-1">${escapeHtml(r.label)}</h5>
+                    <pre class="text-xs text-slate-700 whitespace-pre-wrap font-mono bg-white p-2 rounded border border-slate-100 overflow-x-auto">${escapeHtml(r.content)}</pre>
+                </div>
+            `).join('');
 
-            if (window.innerWidth < 768) switchTab('viewer');
+            const flashEl = document.getElementById('view-flashcards');
+            flashEl.innerHTML = (digest.flashcards || []).map(f => `
+                <div class="bg-purple-50/50 border border-purple-100 p-2.5 rounded-lg text-xs">
+                    <p class="font-bold text-purple-900 mb-1">Q. ${escapeHtml(f.question)}</p>
+                    <p class="text-slate-700 bg-white p-2 rounded border border-purple-50">A. ${escapeHtml(f.answer)}</p>
+                </div>
+            `).join('');
+
+            if (window.innerWidth < 768) {
+                switchTab('viewer');
+            }
         }
 
-        function escapeHTML(str) {
-            return String(str).replace(/[&<>'"]/g, t => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[t] || t));
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[tag] || tag));
         }
     </script>
 </body>
