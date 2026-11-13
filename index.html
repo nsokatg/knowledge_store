@@ -368,7 +368,7 @@
             const btn = document.getElementById('process-btn');
             btn.disabled = true; btn.innerText = 'AI処理中...';
 
-            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`;
             const prompt = `あなたは優秀な学習・コード整理アシスタントです。以下の「学習メモ・コマンド／コード一覧」を分析し、**入力された元データの内容やコードは一切省略せず、すべて綺麗に構造化された一覧に分解・整理してください**。さらに、全体ダイジェスト、重要キーワード、復習用Q&Aを作成し、必ず以下のJSONスキーマ形式のみで出力してください。余計な文章やMarkdownバッククォートは含めないでください。
 
 {
@@ -488,7 +488,7 @@ ${rawText}`;
 
             const updatedRawText = item.rawInput + "\n\n【追加 (" + new Date().toISOString().split('T')[0] + ")】\n" + appendText;
 
-            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`;
             const prompt = `あなたは優秀な学習・コード整理アシスタントです。以下の「統合された学習メモ・コード一覧全体」を改めて分析し、**追加された内容も含めてすべての元データやコードを省略せず綺麗に構造化された一覧に整理し直してください**。さらにダイジェスト、キーワード、Q&Aを更新し、必ず以下のJSONスキーマ形式のみで出力してください。余計な文章やMarkdownバッククォートは含めないでください。
 
 {
@@ -580,7 +580,7 @@ ${updatedRawText}`;
                 keywords: (item.digest.keywords || []).map(k => k.term)
             }));
 
-            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`;
             const prompt = `あなたは高度なナレッジ検索アシスタントです。以下の「カードの軽量インデックス一覧」と<b>ユーザーの検索クエリ</b>を分析し、ユーザーの検索意図に対する関連度スコア（0.0〜1.0）を算出して、関連度が高い順に並べた結果を必ず以下のJSON形式のみで出力してください。
 余計な解説文やMarkdownバッククォートは含めないでください。該当するものが無い場合は results を空配列 [] にしてください。
 
